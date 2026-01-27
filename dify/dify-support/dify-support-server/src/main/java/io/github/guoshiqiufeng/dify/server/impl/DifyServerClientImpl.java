@@ -16,7 +16,13 @@
 package io.github.guoshiqiufeng.dify.server.impl;
 
 import io.github.guoshiqiufeng.dify.core.pojo.DifyPageResult;
+import io.github.guoshiqiufeng.dify.core.utils.CollUtil;
+import io.github.guoshiqiufeng.dify.core.utils.MapUtil;
+import io.github.guoshiqiufeng.dify.dataset.client.DifyDatasetClient;
 import io.github.guoshiqiufeng.dify.dataset.dto.response.DocumentIndexingStatusResponse;
+import io.github.guoshiqiufeng.dify.dataset.dto.response.DocumentInfo;
+import io.github.guoshiqiufeng.dify.dataset.dto.response.UploadFileInfoResponse;
+import io.github.guoshiqiufeng.dify.server.utils.FilePreviewSigner;
 import io.github.guoshiqiufeng.dify.server.DifyServer;
 import io.github.guoshiqiufeng.dify.server.client.DifyServerClient;
 import io.github.guoshiqiufeng.dify.server.dto.request.AppsRequest;
@@ -24,9 +30,12 @@ import io.github.guoshiqiufeng.dify.server.dto.request.ChatConversationsRequest;
 import io.github.guoshiqiufeng.dify.server.dto.request.DocumentRetryRequest;
 import io.github.guoshiqiufeng.dify.server.dto.response.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.Assert;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author yanghq
@@ -37,9 +46,19 @@ import java.util.List;
 public class DifyServerClientImpl implements DifyServer {
 
     private final DifyServerClient difyServerClient;
+    private final DifyDatasetClient difyDatasetClient;
+    private final FilePreviewSigner filePreviewSigner;
 
     public DifyServerClientImpl(DifyServerClient difyServerClient) {
+        this(difyServerClient, null, null);
+    }
+
+    public DifyServerClientImpl(DifyServerClient difyServerClient,
+                                DifyDatasetClient difyDatasetClient,
+                                FilePreviewSigner filePreviewSigner) {
         this.difyServerClient = difyServerClient;
+        this.difyDatasetClient = difyDatasetClient;
+        this.filePreviewSigner = filePreviewSigner;
     }
 
     @Override
@@ -85,6 +104,51 @@ public class DifyServerClientImpl implements DifyServer {
     @Override
     public void deleteDatasetApiKey(String apiKeyId) {
         difyServerClient.deleteDatasetApiKey(apiKeyId);
+    }
+
+    @Override
+    public UploadFileInfoResponse getUploadFileInfoByDocument(String datasetId, String documentId, String apiKey) {
+        Assert.notNull(difyDatasetClient, "DifyDatasetClient is not configured");
+        DocumentInfo documentInfo = difyDatasetClient.getDocument(datasetId, documentId, apiKey);
+        if (documentInfo == null) {
+            return null;
+        }
+
+        Map<String, Object> dataSourceInfo = documentInfo.getDataSourceInfo();
+        if (CollUtil.isEmpty(dataSourceInfo)) {
+            return null;
+        }
+
+        String dataSourceType = documentInfo.getDataSourceType();
+        if (dataSourceType == null || dataSourceType.trim().isEmpty()) {
+            return null;
+        }
+
+        UploadFileInfoResponse response = new UploadFileInfoResponse();
+
+        Object detailObj = dataSourceInfo.get(dataSourceType);
+        if (!(detailObj instanceof Map)) {
+            return null;
+        }
+        Map<?, ?> detailMap = (Map<?, ?>) detailObj;
+
+        response.setId(MapUtil.getStr(detailMap, "id"));
+        response.setName(MapUtil.getStr(detailMap, "name"));
+        response.setSize(MapUtil.getInt(detailMap, "size"));
+        response.setExtension(MapUtil.getStr(detailMap, "extension"));
+        response.setMimeType(MapUtil.getStr(detailMap, "mime_type"));
+        response.setCreatedBy(MapUtil.getStr(detailMap, "created_by"));
+        BigDecimal createdAt = MapUtil.getBigDecimal(detailMap, "created_at");
+        response.setCreatedAt(createdAt == null ? null : createdAt.longValue());
+
+        if (response.getId() == null) {
+            return null;
+        }
+
+        Assert.notNull(filePreviewSigner, "FilePreviewSigner is not configured");
+        response.setUrl(filePreviewSigner.buildSignedFileUrl(response.getId(), false));
+        response.setDownloadUrl(filePreviewSigner.buildSignedFileUrl(response.getId(), true));
+        return response;
     }
 
     @Override

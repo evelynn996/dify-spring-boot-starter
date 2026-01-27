@@ -17,6 +17,7 @@ package io.github.guoshiqiufeng.dify.server;
 
 import io.github.guoshiqiufeng.dify.core.pojo.DifyPageResult;
 import io.github.guoshiqiufeng.dify.dataset.dto.response.DocumentIndexingStatusResponse;
+import io.github.guoshiqiufeng.dify.dataset.dto.response.UploadFileInfoResponse;
 import io.github.guoshiqiufeng.dify.server.dto.request.AppsRequest;
 import io.github.guoshiqiufeng.dify.server.dto.request.ChatConversationsRequest;
 import io.github.guoshiqiufeng.dify.server.dto.request.DocumentRetryRequest;
@@ -117,6 +118,27 @@ public interface DifyServer {
      * @throws NullPointerException 如果 apiKeyId 为 null
      */
     void deleteDatasetApiKey(String apiKeyId);
+
+    /**
+     * 通过文档详情获取上传文件信息并生成签名链接
+     *
+     * @param datasetId  知识库的唯一标识符
+     * @param documentId 文档的唯一标识符
+     * @return 返回上传文件信息响应对象
+     */
+    default UploadFileInfoResponse getUploadFileInfoByDocument(String datasetId, String documentId) {
+        return getUploadFileInfoByDocument(datasetId, documentId, null);
+    }
+
+    /**
+     * 通过文档详情获取上传文件信息并生成签名链接
+     *
+     * @param datasetId  知识库的唯一标识符
+     * @param documentId 文档的唯一标识符
+     * @param apiKey     apiKey
+     * @return 返回上传文件信息响应对象
+     */
+    UploadFileInfoResponse getUploadFileInfoByDocument(String datasetId, String documentId, String apiKey);
 
     /**
      * 获取应用的聊天会话列表

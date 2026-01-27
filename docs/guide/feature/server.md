@@ -607,6 +607,145 @@ public void testRetryDocumentIndexing() {
 }
 ```
 
+### 2.8 获取文档上传文件信息
+
+#### 方法
+
+```java
+UploadFileInfoResponse getUploadFileInfoByDocument(String datasetId, String documentId);
+UploadFileInfoResponse getUploadFileInfoByDocument(String datasetId, String documentId, String apiKey);
+```
+
+#### 请求参数
+
+| 参数名        | 类型     | 是否必须 | 描述                                                                 |
+|------------|--------|------|---------------------------------------------------------------------|
+| datasetId  | String | 是    | 知识库ID                                                              |
+| documentId | String | 是    | 文档ID                                                               |
+| apiKey     | String | 否    | API密钥（可选）。如果不传或传 null，则使用配置文件中的 `dify.dataset.api-key`；如果传入具体值，则使用传入的 API Key 覆盖默认配置 |
+
+#### 响应参数
+
+UploadFileInfoResponse
+
+| 参数名         | 类型      | 描述                      |
+|-------------|---------|-------------------------|
+| id          | String  | 文件ID                    |
+| name        | String  | 文件名称                    |
+| size        | Integer | 文件大小（字节）                |
+| extension   | String  | 文件扩展名                   |
+| url         | String  | 文件预览URL（带签名，有效期5分钟）    |
+| downloadUrl | String  | 文件下载URL（带签名，有效期5分钟）    |
+| mimeType    | String  | 文件MIME类型                |
+| createdBy   | String  | 创建者ID                   |
+| createdAt   | Long    | 创建时间（时间戳）               |
+
+#### 功能说明
+
+此方法用于获取知识库中已上传文档的文件信息，并自动生成带签名的预览和下载链接。主要特点：
+
+1. **自动签名**：返回的 `url` 和 `downloadUrl` 已经包含了安全签名，可以直接使用
+2. **有效期限制**：生成的 URL 有效期为 5 分钟（由服务端 `FILES_ACCESS_TIMEOUT` 配置决定）
+3. **支持预览和下载**：提供两种 URL，分别用于在线预览和文件下载
+
+#### 请求示例
+
+```java
+
+@Resource
+private DifyServer difyServer;
+
+@Test
+public void testGetUploadFileInfo() {
+    String datasetId = "dataset-123456789";
+    String documentId = "doc-987654321";
+
+    // 方法1：使用默认API密钥
+    UploadFileInfoResponse fileInfo = difyServer.getUploadFileInfoByDocument(datasetId, documentId);
+
+    if (fileInfo != null) {
+        System.out.println("文件ID: " + fileInfo.getId());
+        System.out.println("文件名称: " + fileInfo.getName());
+        System.out.println("文件大小: " + fileInfo.getSize() + " 字节");
+        System.out.println("文件扩展名: " + fileInfo.getExtension());
+        System.out.println("MIME类型: " + fileInfo.getMimeType());
+        System.out.println("创建者: " + fileInfo.getCreatedBy());
+        System.out.println("创建时间: " + fileInfo.getCreatedAt());
+
+        // 使用预览URL（在浏览器中打开可直接预览）
+        System.out.println("预览URL: " + fileInfo.getUrl());
+
+        // 使用下载URL（在浏览器中打开会触发下载）
+        System.out.println("下载URL: " + fileInfo.getDownloadUrl());
+    }
+}
+
+@Test
+public void testGetUploadFileInfoWithApiKey() {
+    String datasetId = "dataset-123456789";
+    String documentId = "doc-987654321";
+    String apiKey = "dataset-xxx";
+
+    // 方法2：指定API密钥
+    UploadFileInfoResponse fileInfo =
+        difyServer.getUploadFileInfoByDocument(datasetId, documentId, apiKey);
+
+    if (fileInfo != null) {
+        System.out.println("文件信息: " + fileInfo);
+    }
+}
+```
+
+#### 使用场景
+
+1. **文件预览**：在应用中展示知识库文档的预览链接
+2. **文件下载**：提供文档下载功能
+3. **文件信息展示**：显示文档的详细信息（名称、大小、类型等）
+4. **临时访问**：生成临时的安全访问链接，避免直接暴露文件存储路径
+
+#### 注意事项
+
+1. **URL 有效期**：返回的 URL 有效期为 5 分钟，超时后需要重新调用此方法获取新的 URL
+2. **文档类型限制**：仅支持通过文件上传方式创建的文档，不支持通过其他方式（如网页抓取）创建的文档
+3. **权限验证**：需要确保使用的 API 密钥有权限访问指定的知识库和文档
+4. **配置要求**：需要在配置文件中正确配置文件服务地址和签名密钥
+
+#### 配置说明
+
+文件服务地址配置优先级：
+1. **优先使用** `dify.file.url` - 专门用于文件服务的地址
+2. **兜底使用** `dify.url` - 如果未配置 `dify.file.url`，则使用通用的 Dify 服务地址
+
+签名密钥配置：
+- 必须配置 `dify.signature.secret-key`，用于生成文件访问签名
+
+#### 配置示例
+
+**方式1：使用专用文件服务地址（推荐）**
+
+```yaml
+dify:
+  # Dify 服务地址
+  url: http://your-dify-server.com
+  # 文件服务地址（如果文件服务与主服务分离）
+  file:
+    url: http://your-file-server.com
+  # 签名密钥
+  signature:
+    secret-key: your-secret-key
+```
+
+**方式2：使用统一服务地址（简化配置）**
+
+```yaml
+dify:
+  # Dify 服务地址（同时用于文件服务）
+  url: http://your-dify-server.com
+  # 签名密钥
+  signature:
+    secret-key: your-secret-key
+```
+
 ## 3. 聊天会话管理
 
 ### 3.1 获取应用的聊天会话列表

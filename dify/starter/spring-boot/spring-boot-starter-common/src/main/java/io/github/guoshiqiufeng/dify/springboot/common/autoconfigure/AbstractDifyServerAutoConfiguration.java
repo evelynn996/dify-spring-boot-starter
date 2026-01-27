@@ -19,15 +19,19 @@ import io.github.guoshiqiufeng.dify.client.core.codec.JsonMapper;
 import io.github.guoshiqiufeng.dify.client.core.web.client.HttpClient;
 import io.github.guoshiqiufeng.dify.client.integration.spring.http.SpringHttpClientFactory;
 import io.github.guoshiqiufeng.dify.core.config.DifyProperties;
+import io.github.guoshiqiufeng.dify.dataset.client.DifyDatasetClient;
 import io.github.guoshiqiufeng.dify.server.DifyServer;
 import io.github.guoshiqiufeng.dify.server.client.BaseDifyServerToken;
 import io.github.guoshiqiufeng.dify.server.client.DifyServerClient;
 import io.github.guoshiqiufeng.dify.server.client.DifyServerTokenDefault;
 import io.github.guoshiqiufeng.dify.server.impl.DifyServerClientImpl;
+import io.github.guoshiqiufeng.dify.server.utils.FilePreviewSigner;
 import io.github.guoshiqiufeng.dify.support.impl.server.DifyServerDefaultClient;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
@@ -66,8 +70,24 @@ public abstract class AbstractDifyServerAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(FilePreviewSigner.class)
+    @ConditionalOnProperty(prefix = "dify.signature", name = "secret-key")
+    public FilePreviewSigner filePreviewSigner(DifyProperties properties) {
+        String fileUrl = properties.getFile().getUrl();
+        if (fileUrl == null || fileUrl.trim().isEmpty()) {
+            fileUrl = properties.getUrl();
+            log.debug("dify.file.url not configured, using dify.url as default: {}", fileUrl);
+        }
+        return new FilePreviewSigner(fileUrl, properties.getSignature().getSecretKey());
+    }
+
+    @Bean
     @ConditionalOnMissingBean({DifyServer.class})
-    public DifyServerClientImpl difyServerHandler(DifyServerClient difyServerClient) {
-        return new DifyServerClientImpl(difyServerClient);
+    public DifyServerClientImpl difyServerHandler(DifyServerClient difyServerClient,
+                                                  ObjectProvider<DifyDatasetClient> difyDatasetClientProvider,
+                                                  ObjectProvider<FilePreviewSigner> filePreviewSignerProvider) {
+        return new DifyServerClientImpl(difyServerClient,
+                difyDatasetClientProvider.getIfAvailable(),
+                filePreviewSignerProvider.getIfAvailable());
     }
 }

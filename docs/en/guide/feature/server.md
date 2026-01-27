@@ -609,6 +609,145 @@ public void testRetryDocumentIndexing() {
 }
 ```
 
+### 2.8 Get Document Upload File Information
+
+#### Method
+
+```java
+UploadFileInfoResponse getUploadFileInfoByDocument(String datasetId, String documentId);
+UploadFileInfoResponse getUploadFileInfoByDocument(String datasetId, String documentId, String apiKey);
+```
+
+#### Request Parameters
+
+| Parameter name | Type   | Required | Description                                                                                                                                                                      |
+|----------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| datasetId      | String | Yes      | Dataset ID                                                                                                                                                                       |
+| documentId     | String | Yes      | Document ID                                                                                                                                                                      |
+| apiKey         | String | No       | API Key (optional). If not provided or null, uses the default `dify.dataset.api-key` from configuration; if a specific value is provided, it overrides the default configuration |
+
+#### Response Parameters
+
+UploadFileInfoResponse
+
+| Parameter name | Type    | Description                                      |
+|----------------|---------|--------------------------------------------------|
+| id             | String  | File ID                                          |
+| name           | String  | File name                                        |
+| size           | Integer | File size (in bytes)                             |
+| extension      | String  | File extension                                   |
+| url            | String  | File preview URL (signed, valid for 5 minutes)   |
+| downloadUrl    | String  | File download URL (signed, valid for 5 minutes)  |
+| mimeType       | String  | File MIME type                                   |
+| createdBy      | String  | Creator ID                                       |
+| createdAt      | Long    | Creation time (timestamp)                        |
+
+#### Feature Description
+
+This method retrieves file information for uploaded documents in a knowledge base and automatically generates signed preview and download links. Key features:
+
+1. **Automatic Signing**: The returned `url` and `downloadUrl` already include security signatures and can be used directly
+2. **Validity Period**: Generated URLs are valid for 5 minutes (determined by server's `FILES_ACCESS_TIMEOUT` configuration)
+3. **Preview and Download Support**: Provides two types of URLs for online preview and file download respectively
+
+#### Request Example
+
+```java
+
+@Resource
+private DifyServer difyServer;
+
+@Test
+public void testGetUploadFileInfo() {
+    String datasetId = "dataset-123456789";
+    String documentId = "doc-987654321";
+
+    // Method 1: Use default API key
+    UploadFileInfoResponse fileInfo = difyServer.getUploadFileInfoByDocument(datasetId, documentId);
+
+    if (fileInfo != null) {
+        System.out.println("File ID: " + fileInfo.getId());
+        System.out.println("File name: " + fileInfo.getName());
+        System.out.println("File size: " + fileInfo.getSize() + " bytes");
+        System.out.println("File extension: " + fileInfo.getExtension());
+        System.out.println("MIME type: " + fileInfo.getMimeType());
+        System.out.println("Created by: " + fileInfo.getCreatedBy());
+        System.out.println("Created at: " + fileInfo.getCreatedAt());
+
+        // Use preview URL (opens directly in browser for preview)
+        System.out.println("Preview URL: " + fileInfo.getUrl());
+
+        // Use download URL (triggers download when opened in browser)
+        System.out.println("Download URL: " + fileInfo.getDownloadUrl());
+    }
+}
+
+@Test
+public void testGetUploadFileInfoWithApiKey() {
+    String datasetId = "dataset-123456789";
+    String documentId = "doc-987654321";
+    String apiKey = "dataset-xxx";
+
+    // Method 2: Specify API key
+    UploadFileInfoResponse fileInfo =
+        difyServer.getUploadFileInfoByDocument(datasetId, documentId, apiKey);
+
+    if (fileInfo != null) {
+        System.out.println("File info: " + fileInfo);
+    }
+}
+```
+
+#### Use Cases
+
+1. **File Preview**: Display preview links for knowledge base documents in your application
+2. **File Download**: Provide document download functionality
+3. **File Information Display**: Show detailed document information (name, size, type, etc.)
+4. **Temporary Access**: Generate temporary secure access links to avoid directly exposing file storage paths
+
+#### Important Notes
+
+1. **URL Validity Period**: Returned URLs are valid for 5 minutes. After expiration, you need to call this method again to get new URLs
+2. **Document Type Limitation**: Only supports documents created via file upload, not documents created through other methods (e.g., web scraping)
+3. **Permission Verification**: Ensure the API key used has permission to access the specified knowledge base and document
+4. **Configuration Requirements**: Requires proper configuration of file service URL and signature secret key in the configuration file
+
+#### Configuration Description
+
+File service URL configuration priority:
+1. **First priority**: `dify.file.url` - Dedicated file service URL
+2. **Fallback**: `dify.url` - If `dify.file.url` is not configured, uses the general Dify service URL
+
+Signature secret key configuration:
+- Must configure `dify.signature.secret-key` for generating file access signatures
+
+#### Configuration Examples
+
+**Method 1: Use dedicated file service URL (Recommended)**
+
+```yaml
+dify:
+  # Dify service URL
+  url: http://your-dify-server.com
+  # File service URL (if file service is separate from main service)
+  file:
+    url: http://your-file-server.com
+  # Signature secret key
+  signature:
+    secret-key: your-secret-key
+```
+
+**Method 2: Use unified service URL (Simplified configuration)**
+
+```yaml
+dify:
+  # Dify service URL (also used for file service)
+  url: http://your-dify-server.com
+  # Signature secret key
+  signature:
+    secret-key: your-secret-key
+```
+
 ## 3. Chat Conversation Management
 
 ### 3.1 Get Application Chat Conversation List

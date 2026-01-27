@@ -16,6 +16,10 @@
 package io.github.guoshiqiufeng.dify.server.impl;
 
 import io.github.guoshiqiufeng.dify.core.pojo.DifyPageResult;
+import io.github.guoshiqiufeng.dify.dataset.client.DifyDatasetClient;
+import io.github.guoshiqiufeng.dify.dataset.dto.response.DocumentInfo;
+import io.github.guoshiqiufeng.dify.dataset.dto.response.UploadFileInfoResponse;
+import io.github.guoshiqiufeng.dify.server.utils.FilePreviewSigner;
 import io.github.guoshiqiufeng.dify.dataset.dto.response.DocumentIndexingStatusResponse;
 import io.github.guoshiqiufeng.dify.server.client.DifyServerClient;
 import io.github.guoshiqiufeng.dify.server.dto.request.AppsRequest;
@@ -26,7 +30,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -200,6 +206,41 @@ class DifyServerClientImplTest {
         assertEquals(expectedDatasetApiKeys.get(0).getId(), actualDatasetApiKeys.get(0).getId());
         assertEquals(expectedDatasetApiKeys.get(0).getToken(), actualDatasetApiKeys.get(0).getToken());
         verify(difyServerClient, times(1)).initDatasetApiKey();
+    }
+
+    @Test
+    void testGetUploadFileInfoByDocument() {
+        DifyDatasetClient datasetClient = mock(DifyDatasetClient.class);
+        FilePreviewSigner signer = new FilePreviewSigner("http://files.example.com", "secret_key");
+        DifyServerClientImpl serverClient = new DifyServerClientImpl(difyServerClient, datasetClient, signer);
+
+        Map<String, Object> uploadFile = new HashMap<>();
+        uploadFile.put("id", "file-id-123");
+        uploadFile.put("name", "test.docx");
+        uploadFile.put("size", 3813);
+        uploadFile.put("extension", "docx");
+        uploadFile.put("mime_type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        uploadFile.put("created_by", "user-1");
+        uploadFile.put("created_at", 1769392768.123805d);
+
+        Map<String, Object> dataSourceInfo = new HashMap<>();
+        dataSourceInfo.put("upload_file", uploadFile);
+
+        DocumentInfo documentInfo = new DocumentInfo();
+        documentInfo.setDataSourceType("upload_file");
+        documentInfo.setDataSourceInfo(dataSourceInfo);
+
+        when(datasetClient.getDocument("dataset_123", "doc_456", "api_key"))
+                .thenReturn(documentInfo);
+
+        UploadFileInfoResponse response = serverClient.getUploadFileInfoByDocument("dataset_123", "doc_456", "api_key");
+
+        assertNotNull(response);
+        assertEquals("file-id-123", response.getId());
+        assertEquals("test.docx", response.getName());
+        assertNotNull(response.getUrl());
+        assertNotNull(response.getDownloadUrl());
+        verify(datasetClient, times(1)).getDocument("dataset_123", "doc_456", "api_key");
     }
 
     @Test

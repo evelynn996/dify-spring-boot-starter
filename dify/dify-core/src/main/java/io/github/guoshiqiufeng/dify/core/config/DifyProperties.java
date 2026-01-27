@@ -56,6 +56,16 @@ public class DifyProperties implements Serializable {
 
     private StatusConfig status = new StatusConfig();
 
+    /**
+     * 签名配置
+     */
+    private Signature signature = new Signature();
+
+    /**
+     * 文件服务配置
+     */
+    private File file = new File();
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -158,5 +168,29 @@ public class DifyProperties implements Serializable {
          * Workflow API key (for DifyWorkflow client)
          */
         private List<String> workflowApiKey;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class Signature implements Serializable {
+        private static final long serialVersionUID = -8070163136236819894L;
+
+        /**
+         * 签名密钥
+         */
+        private String secretKey;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class File implements Serializable {
+        private static final long serialVersionUID = -8070163136236819894L;
+
+        /**
+         * 文件服务地址
+         */
+        private String url;
     }
 }

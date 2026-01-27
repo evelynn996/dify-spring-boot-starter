@@ -26,6 +26,8 @@ import io.github.guoshiqiufeng.dify.dataset.dto.request.document.*;
 import io.github.guoshiqiufeng.dify.dataset.dto.response.DatasetResponse;
 import io.github.guoshiqiufeng.dify.dataset.dto.response.DocumentCreateResponse;
 import io.github.guoshiqiufeng.dify.dataset.dto.response.DocumentIndexingStatusResponse;
+import io.github.guoshiqiufeng.dify.dataset.dto.response.UploadFileInfoResponse;
+import io.github.guoshiqiufeng.dify.dataset.dto.response.UploadFileInfoResponse;
 import io.github.guoshiqiufeng.dify.dataset.enums.IndexingTechniqueEnum;
 import io.github.guoshiqiufeng.dify.dataset.enums.RerankingModeEnum;
 import io.github.guoshiqiufeng.dify.dataset.enums.SearchMethodEnum;
@@ -34,14 +36,20 @@ import io.github.guoshiqiufeng.dify.server.dto.request.AppsRequest;
 import io.github.guoshiqiufeng.dify.server.dto.request.ChatConversationsRequest;
 import io.github.guoshiqiufeng.dify.server.dto.request.DocumentRetryRequest;
 import io.github.guoshiqiufeng.dify.server.dto.response.*;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * DifyServer interface implementation test
@@ -753,5 +761,102 @@ public class ServerTest extends BaseDatasetContainerTest {
 
         difyServer.retryDocumentIndexing(request);
         log.info("Successfully triggered document indexing retry");
+    }
+
+    @Test
+    @Order(27)
+    @DisplayName("Test retrieving upload file info by document")
+    public void getUploadFileInfoByDocumentTest() throws Exception {
+        assertNotNull(testDatasetId, "Dataset ID should be available from initialization");
+        assertNotNull(testDocumentId, "Document ID should be available from initialization");
+
+
+        UploadFileInfoResponse uploadFileInfo = difyServer.getUploadFileInfoByDocument(testDatasetId, testDocumentId, null);
+
+        if (uploadFileInfo != null) {
+            log.info("Upload file info: {}", JSONUtil.toJsonStr(uploadFileInfo));
+
+
+            assertNotNull(uploadFileInfo.getId(), "File ID should not be null");
+            assertNotNull(uploadFileInfo.getName(), "File name should not be null");
+
+            assertNotNull(uploadFileInfo.getUrl(), "File URL should not be null");
+            assertNotNull(uploadFileInfo.getDownloadUrl(), "Download URL should not be null");
+
+            log.info("File ID: {}", uploadFileInfo.getId());
+            log.info("File name: {}", uploadFileInfo.getName());
+            log.info("File size: {}", uploadFileInfo.getSize());
+            log.info("File extension: {}", uploadFileInfo.getExtension());
+            log.info("MIME type: {}", uploadFileInfo.getMimeType());
+            log.info("Created by: {}", uploadFileInfo.getCreatedBy());
+            log.info("Created at: {}", uploadFileInfo.getCreatedAt());
+            log.info("Preview URL: {}", uploadFileInfo.getUrl());
+            log.info("Download URL: {}", uploadFileInfo.getDownloadUrl());
+
+            log.info("Verifying URL accessibility...");
+            verifyUrlAccessible(uploadFileInfo.getUrl(), "Preview URL");
+            verifyUrlAccessible(uploadFileInfo.getDownloadUrl(), "Download URL");
+            log.info("URL accessibility verification completed successfully");
+        } else {
+            log.warn("Upload file info is null - this may occur if the document was created by text rather than file upload");
+            log.warn("Skipping URL accessibility verification for text-based document");
+        }
+    }
+
+    /**
+     * 验证 URL 是否可访问
+     *
+     * @param url URL 地址
+     * @param urlType URL 类型描述
+     */
+    private void verifyUrlAccessible(String url, String urlType) {
+        try {
+            log.info("Checking {} accessibility: {}", urlType, url);
+
+            URI uri = URI.create(url);
+            HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+            connection.setRequestMethod("HEAD");
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(10000);
+            connection.setInstanceFollowRedirects(true);
+
+            int responseCode = connection.getResponseCode();
+            String responseMessage = connection.getResponseMessage();
+
+            log.info("{} accessibility check - Response code: {} ({})", urlType, responseCode, responseMessage);
+
+
+            if (responseCode >= 200 && responseCode < 300) {
+                log.info("{} is accessible (HTTP {})", urlType, responseCode);
+            } else {
+                String errorMsg = String.format("%s returned HTTP %d (%s)", urlType, responseCode, responseMessage);
+                log.error(errorMsg);
+
+                try (InputStream errorStream = connection.getErrorStream()) {
+                    if (errorStream != null) {
+                        String errorBody = new String(errorStream.readAllBytes(), StandardCharsets.UTF_8);
+                        log.error("Error response body: {}", errorBody);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to read error response body: {}", e.getMessage());
+                }
+
+                fail(errorMsg);
+            }
+
+            connection.disconnect();
+        } catch (SocketTimeoutException e) {
+            String errorMsg = String.format("%s request timed out: %s", urlType, e.getMessage());
+            log.error(errorMsg, e);
+            fail(errorMsg);
+        } catch (UnknownHostException e) {
+            String errorMsg = String.format("%s host not found: %s", urlType, e.getMessage());
+            log.error(errorMsg, e);
+            fail(errorMsg);
+        } catch (Exception e) {
+            String errorMsg = String.format("%s accessibility check failed: %s", urlType, e.getMessage());
+            log.error(errorMsg, e);
+            fail(errorMsg);
+        }
     }
 }
